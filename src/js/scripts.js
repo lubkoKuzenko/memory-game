@@ -1,184 +1,231 @@
-const domElements = {
-    chooser: document.querySelector('.chooser'),
-    playground: document.querySelector('.playground'),
-    scores: document.querySelector('.scores'),
-    timer: document.querySelector('.timer')
-};
-const scoresForWin = 2;
+class Game {
+  constructor() {
+    this.domElements = {
+        chooser: document.querySelector('.chooser'),
+        playground: document.querySelector('.playground'),
+        scores: document.querySelector('.scores'),
+        timer: document.querySelector('.timer'),
+        matched: document.querySelector('.matched'),
+        newGame: document.querySelector('.new-game-btn')
+    };
 
-let playGroundSize = parseInt(domElements.chooser.value, 10);
-let debounce = false;
-let cardToCompare = '';
-let opened = 0;
-let score = 0;
-let seconds = 0;
-let minutes = 0;
-let timerId;
+    this.name = 'Polygon';
+    this.playGroundSize = parseInt(this.domElements.chooser.value, 10);
+    this.debounce = false;
+    this.cardToCompare = '';
+    this.opened = 0;
+    this.score = 0;
+    this.seconds = 0;
+    this.minutes = 0;
+    this.timerId = null;
+    this.scoresForWin = 2;
+    this.cards = null;
+  }
 
+  // -----------------------------------------
+  // Start
+  // -----------------------------------------
 
-// Main functionality
+  start(){
+    this.resetView();
+    this.resetTotalCount();
+    this.resetValues();
 
-function generatePlayground(n) {
-    const amount = (n*n)/2;
-    const cardsFront = randomizer(amount);
-    let cards = '';
-    minutes = 0;
-    seconds = 0;
-    score = 0;
-    resetValues();
-    if(timerId) {
-        stopTimer();
-        timerId = '';
+    this.generatePlayground();
+
+    this.domElements.chooser.addEventListener('change', this.onSizeChange.bind(this), false);
+  }
+
+  generatePlayground(){
+    this.cardsFront = this.randomizer(Math.pow(this.playGroundSize , 2) / 2);
+
+    if(this.timerId) {
+        this.stopTimer();
+        this.resetTimer();
     }
-    renderScores();
-    renderTimer();
+    this.renderScores();
+    this.renderTimer();
 
-    cardsFront.forEach(el => cards += createCard(el));
-    domElements.playground.insertAdjacentHTML("beforeend", cards);
+    this.cardsFront.forEach(el => {
+      this.cards += this.renderCard(el)
+    });
 
-    if(n < 8){
-        domElements.playground.classList.remove('big-playground')
+    this.renderPlaygroud();
+  }
+
+  startTimer(){
+    this.timerId = setInterval(() => {
+      this.seconds++;
+      if (this.seconds > 59){
+        this.minutes++;
+        this.seconds = 0;
+      }
+      if(this.seconds < 9){
+        this.seconds = '0' + this.seconds;
+      }
+      this.renderTimer();
+    }, 1000);
+  }
+
+  onSizeChange(e){
+    this.playGroundSize = parseInt(e.target.value, 10);
+    this.start();
+  }
+
+  // -----------------------------------------
+  // Bussiness logic
+  // -----------------------------------------
+
+  rotate(card) {
+    card.classList.toggle('turned');
+  }
+
+  onCardClick(e){
+    let target = e.target;
+
+    while(target !== this.domElements.playground){
+      if(target.classList.contains('card') && !target.classList.contains('matched') && !this.debounce && target !== this.cardToCompare) {
+        if(!this.timerId){
+          this.startTimer();
+        }
+        this.rotate(target);
+        this.opened++;
+
+        if(this.cardToCompare && this.opened === 2) {
+            this.debounce = true;
+            setTimeout(() => {
+              if(this.cardToCompare.id === target.id){
+                this.cardIsEqual(this.cardToCompare, target);
+              } else {
+                this.cardIsDifferent(this.cardToCompare, target);
+              }
+            }, 1000);
+        } else {
+            this.cardToCompare = target;
+        };
+
+        return false;
+      }
+      target = target.parentNode;
     }
-    if(n >= 6){
-        Array.from(document.getElementsByClassName('card')).forEach(el => el.classList.add('card-for-6x6'));
+  }
+
+  cardIsEqual(...args){
+    this.score += this.scoresForWin;
+    args.forEach(el => el.classList.add('matched'));
+    this.resetValues();
+    this.renderScores();
+    if(this.detectEndOfGame()){
+      this.stopTimer(this.timerId);
+      this.renderFinishPopUp();
     }
-    if (n >= 8) {
-        Array.from(document.getElementsByClassName('card')).forEach(el => el.classList.add('card-for-8x8'));
-        domElements.playground.classList.add('big-playground');
-    }
-}
+  }
 
-function onCardClick(e) {
-     let target = e.target;
+  cardIsDifferent(...args){
+    args.forEach(el => this.rotate(el));
+    this.resetValues();
+  }
 
-     while(target != domElements.playground){
-         if(target.classList.contains('card') 
-            && !target.classList.contains('matched')
-            && !debounce
-            && target !== cardToCompare){
-                if(!timerId){
-                    startTimer();
-                }
-             rotate(target);
-             opened = opened+1;
-             if(cardToCompare && opened === 2) {
-                 debounce = true;
-                 setTimeout(() =>{
-                     checkCardsEquality(cardToCompare.id, target.id) ? onEqualCards(cardToCompare, target) : onDifferentCards(cardToCompare, target);
-                 },  1000)
-            } else {
-                cardToCompare = target;
-            };
-             return;
-         }
-            target = target.parentNode;
-     }
-}
+  // -----------------------------------------
+  // Render
+  // -----------------------------------------
 
-// Helpers for generating playground
+  renderCard(name){
+    const card = `<figure class='card' id="img-${name}">
+      <img src="../pics/${name}.jpg" class='side front'>
+      <div class='side back'>Vickie's memory</div>
+    </figure>`;
 
-function randomizer(n) {
+    this.domElements.playground.insertAdjacentHTML("beforeend", card);
+    this.domElements.playground.addEventListener('click', this.onCardClick.bind(this), false);
+  }
+
+  renderTimer(){
+    this.domElements.timer.innerHTML = `${this.minutes}:${this.seconds}`
+  }
+
+  renderScores(){
+    this.domElements.scores.innerHTML = this.score;
+  }
+
+  renderPlaygroud(){
+    this.domElements.playground.classList.remove('big-playground');
+
+    Array.from(document.getElementsByClassName('card')).forEach(el => {
+      if(this.playGroundSize === 4){
+        el.classList.add('card-for-4x4');
+      } else if(this.playGroundSize === 6){
+        el.classList.add('card-for-6x6');
+      } else {
+        el.classList.add('card-for-6x6');
+        el.classList.add('card-for-8x8');
+        this.domElements.playground.classList.add('big-playground');
+      }
+    });
+  }
+
+  renderFinishPopUp(){
+    const popupTemplate = ` <section class="end-game-popup">
+      <p class='final-text'>Well Done!</p>
+      <p class='final-text'>Your Score: <span>${this.score}</span></p>
+      <p class='final-text'>Your Time: <span>${this.minutes}:${this.seconds}</span></p>
+      <button class='new-game-btn'>Start New game</button>
+    </section>`;
+
+    this.domElements.playground.insertAdjacentHTML("beforeend", popupTemplate);
+    this.finishGame()
+  }
+
+  // -----------------------------------------
+  // Reset
+  // -----------------------------------------
+
+  resetView(){
+    this.domElements.playground.innerHTML = '';
+  }
+
+  resetTotalCount(){
+    this.minutes = 0;
+    this.seconds = 0;
+    this.score = 0;
+  }
+
+  resetValues() {
+    this.cardToCompare = '';
+    this.opened = 0;
+    this.debounce = false;
+  }
+
+  resetTimer(){
+    this.timerId = null;
+  }
+
+  // -----------------------------------------
+  // Finish
+  // -----------------------------------------
+
+  stopTimer(){
+      clearInterval(this.timerId);
+  }
+
+  detectEndOfGame(){
+    return this.domElements.matched.length === Math.pow(this.playGroundSize , 2);
+  }
+
+  finishGame(){
+    this.domElements.newGame.addEventListener('click', this.start.bind(this), false);
+  }
+
+  // -----------------------------------------
+  // utils
+  // -----------------------------------------
+
+  randomizer(n) {
     const arr = new Array(n).fill(true).map((item, i) => ++i);
     const pics = [...arr, ...arr];
 
     return pics.sort((a, b) => Math.random() - 0.5);
+  }
 }
 
-function createCard(name){
-    const card = `<figure class='card' id="img-${name}">
-            <img src="../pics/${name}.jpg" class='side front'>
-            <div class='side back'>Vickie's memory</div>
-        </figure>`;
-
-        return card;
-}
-
-function onSizeChange(e) {
-    playGroundSize = parseInt(e.value, 10);
-    startNewGame();
-}
-
-// Helpers for gaming functionality
-
-function startNewGame(){
-    domElements.playground.innerHTML = '';
-    generatePlayground(playGroundSize);
-}
-
-function rotate(card) {
-    card.classList.toggle('turned');
-}
-
-function resetValues() {
-    cardToCompare = '';
-    opened = 0;
-    debounce = false;
-}
-
-function checkCardsEquality(id1, id2) {
-    const isEqual = id1 === id2;
-    return isEqual;
-}
-
-function onEqualCards(...args){
-    score += scoresForWin;
-    args.forEach(el => el.classList.add('matched'));
-    resetValues();
-    renderScores();
-    if(detectEndOfGame()){
-        stopTimer();
-        generateEndGamePopup()}
-}
-
-function onDifferentCards(...args){
-    args.forEach(el => rotate(el));
-    resetValues();
-}
-
-function detectEndOfGame() {
-    const matchedCards = document.getElementsByClassName('matched');
-    return matchedCards.length === playGroundSize*playGroundSize;
-}
-
-function generateEndGamePopup(){
-    const popupTemplate = ` <section class="end-game-popup">
-            <p class='final-text'>Well Done!</p>
-            <p class='final-text'>Your Score: <span>${score}</span></p>
-            <p class='final-text'>Your Time: <span>${minutes}:${seconds}</span></p>
-            <button class='new-game-btn'>Start New game</button>
-        </section>`
-
-        domElements.playground.insertAdjacentHTML("beforeend", popupTemplate);
-        document.querySelector('.new-game-btn').addEventListener('click', startNewGame);
-}
-
-// Additional features
-
-function renderScores(){
-    domElements.scores.innerHTML = score;
-}
-
-function startTimer(){
-    timerId = setInterval(() =>{
-        seconds++;
-        if (seconds>59){
-            minutes++;
-            seconds = 0;
-        }
-        if(seconds<9){
-            seconds = '0'+seconds;
-        }
-        renderTimer();
-    }, 1000)
-}
-
-function renderTimer(){
-    domElements.timer.innerHTML = `${minutes}:${seconds}`
-}
-
-function stopTimer(){
-    clearInterval(timerId);
-}
-
-startNewGame();
-domElements.playground.addEventListener('click', onCardClick);
+new Game().start();
