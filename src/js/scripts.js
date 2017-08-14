@@ -4,9 +4,7 @@ class Game {
         chooser: document.querySelector('.chooser'),
         playground: document.querySelector('.playground'),
         scores: document.querySelector('.scores'),
-        timer: document.querySelector('.timer'),
-        matched: document.querySelector('.matched'),
-        newGame: document.querySelector('.new-game-btn')
+        timer: document.querySelector('.timer')
     };
 
     this.name = 'Polygon';
@@ -20,6 +18,8 @@ class Game {
     this.timerId = null;
     this.scoresForWin = 2;
     this.cards = null;
+    this.matched = 0;
+    this.timerTime = 1000;
   }
 
   // -----------------------------------------
@@ -37,19 +37,19 @@ class Game {
   }
 
   generatePlayground(){
+    this.matched = 0;
     this.cardsFront = this.randomizer(Math.pow(this.playGroundSize , 2) / 2);
 
     if(this.timerId) {
         this.stopTimer();
-        this.resetTimer();
     }
-    this.renderScores();
-    this.renderTimer();
-
-    this.cardsFront.forEach(el => {
-      this.cards += this.renderCard(el)
+    
+    this.cardsFront.map((item) => { 
+      this.cards += this.renderCard(item)
     });
 
+    this.renderScores();
+    this.renderTimer();
     this.renderPlaygroud();
   }
 
@@ -60,11 +60,10 @@ class Game {
         this.minutes++;
         this.seconds = 0;
       }
-      if(this.seconds < 9){
-        this.seconds = '0' + this.seconds;
-      }
+
+      this.seconds = this.seconds < 9 ? '0' + this.seconds: this.seconds;
       this.renderTimer();
-    }, 1000);
+    }, this.timerTime);
   }
 
   onSizeChange(e){
@@ -81,10 +80,13 @@ class Game {
   }
 
   onCardClick(e){
+    if(!e){
+      return false;
+    }
     let target = e.target;
 
     while(target !== this.domElements.playground){
-      if(target.classList.contains('card') && !target.classList.contains('matched') && !this.debounce && target !== this.cardToCompare) {
+      if(target.classList.contains('card') && !target.classList.contains('turned') && !this.debounce && target !== this.cardToCompare) {
         if(!this.timerId){
           this.startTimer();
         }
@@ -99,7 +101,7 @@ class Game {
               } else {
                 this.cardIsDifferent(this.cardToCompare, target);
               }
-            }, 1000);
+            }, this.timerTime);
         } else {
             this.cardToCompare = target;
         };
@@ -112,7 +114,7 @@ class Game {
 
   cardIsEqual(...args){
     this.score += this.scoresForWin;
-    args.forEach(el => el.classList.add('matched'));
+    args.map(() => { this.matched += 1 });
     this.resetValues();
     this.renderScores();
     if(this.detectEndOfGame()){
@@ -122,7 +124,7 @@ class Game {
   }
 
   cardIsDifferent(...args){
-    args.forEach(el => this.rotate(el));
+    args.map(item => this.rotate(item));
     this.resetValues();
   }
 
@@ -149,19 +151,20 @@ class Game {
   }
 
   renderPlaygroud(){
+    const cards = document.getElementsByClassName('card');
     this.domElements.playground.classList.remove('big-playground');
 
-    Array.from(document.getElementsByClassName('card')).forEach(el => {
+    [...cards].map((item) => {
       if(this.playGroundSize === 4){
-        el.classList.add('card-for-4x4');
+        item.classList.add('card-for-4x4');
       } else if(this.playGroundSize === 6){
-        el.classList.add('card-for-6x6');
+        item.classList.add('card-for-6x6');
       } else {
-        el.classList.add('card-for-6x6');
-        el.classList.add('card-for-8x8');
+        item.classList.add('card-for-6x6');
+        item.classList.add('card-for-8x8');
         this.domElements.playground.classList.add('big-playground');
       }
-    });
+    })
   }
 
   renderFinishPopUp(){
@@ -206,14 +209,15 @@ class Game {
 
   stopTimer(){
       clearInterval(this.timerId);
+      this.resetTimer();
   }
 
   detectEndOfGame(){
-    return this.domElements.matched.length === Math.pow(this.playGroundSize , 2);
+    return this.matched === Math.pow(this.playGroundSize , 2);
   }
 
   finishGame(){
-    this.domElements.newGame.addEventListener('click', this.start.bind(this), false);
+    document.querySelector('.new-game-btn').addEventListener('click', this.start.bind(this), false);
   }
 
   // -----------------------------------------
@@ -222,9 +226,8 @@ class Game {
 
   randomizer(n) {
     const arr = new Array(n).fill(true).map((item, i) => ++i);
-    const pics = [...arr, ...arr];
 
-    return pics.sort((a, b) => Math.random() - 0.5);
+    return [...arr, ...arr].sort((a, b) => Math.random() - 0.5);
   }
 }
 
